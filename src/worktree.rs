@@ -9,9 +9,10 @@ use crate::commits::read_commit;
 use crate::hash::git_object_sha1_hex;
 use crate::index::{read_index, write_index, IndexEntry};
 use crate::object_store::{object_exists, read_object};
-use crate::paths::repository_root;
+use crate::paths::{repository_root, worktree_metadata};
 use crate::refs::{branch_reference, resolve_ref};
 use crate::trees::read_tree;
+use crate::worktrees::branch_in_use_elsewhere;
 
 /// Check out a commit ID or a branch name into the current working directory.
 pub fn checkout(target: &str) -> io::Result<()> {
@@ -47,10 +48,7 @@ pub fn checkout(target: &str) -> io::Result<()> {
         fs::write(path, object.content)?;
     }
 
-    fs::write(
-        repository.join(".rustgit").join("HEAD"),
-        resolved.head_value,
-    )?;
+    fs::write(worktree_metadata()?.join("HEAD"), resolved.head_value)?;
     write_index(&target_entries)
 }
 
@@ -68,6 +66,9 @@ fn resolve_target(_repository: &Path, target: &str) -> io::Result<ResolvedTarget
     }
 
     let reference = branch_reference(target)?;
+    if branch_in_use_elsewhere(&reference)? {
+        return Err(invalid_checkout("branch is already checked out elsewhere"));
+    }
     let commit_id = resolve_ref(&reference)?;
 
     Ok(ResolvedTarget {

@@ -8,12 +8,13 @@ use std::fs;
 use std::io;
 use std::path::{Path, PathBuf};
 
-/// Find the nearest repository root by looking for a `.rustgit` directory.
+/// Find the nearest working-tree root by looking for `.rustgit` metadata.
 pub fn repository_root() -> io::Result<PathBuf> {
     let mut directory = std::env::current_dir()?;
 
     loop {
-        if directory.join(".rustgit").is_dir() {
+        let metadata = directory.join(".rustgit");
+        if metadata.is_dir() || metadata.is_file() {
             return fs::canonicalize(directory);
         }
 
@@ -24,6 +25,39 @@ pub fn repository_root() -> io::Result<PathBuf> {
             ));
         }
     }
+}
+
+/// Return the metadata directory for the current working tree.
+pub fn worktree_metadata() -> io::Result<PathBuf> {
+    let metadata = repository_root()?.join(".rustgit");
+    if metadata.is_dir() {
+        return fs::canonicalize(metadata);
+    }
+
+    let marker = fs::read_to_string(metadata)?;
+    let target = marker
+        .trim()
+        .strip_prefix("gitdir: ")
+        .ok_or_else(|| invalid_path("linked worktree metadata marker is invalid"))?;
+    fs::canonicalize(target).map_err(Into::into)
+}
+
+/// Return the shared repository metadata directory.
+pub fn common_metadata() -> io::Result<PathBuf> {
+    let worktree = worktree_metadata()?;
+    let commondir = worktree.join("commondir");
+    if !commondir.exists() {
+        return Ok(worktree);
+    }
+
+    let value = fs::read_to_string(commondir)?;
+    let path = Path::new(value.trim());
+    let path = if path.is_absolute() {
+        path.to_path_buf()
+    } else {
+        worktree.join(path)
+    };
+    fs::canonicalize(path).map_err(Into::into)
 }
 
 /// Resolve a file and return its repository-relative Git-style path.
@@ -86,6 +120,10 @@ fn is_inside(repository: &Path, path: &Path) -> bool {
 
     #[cfg(not(windows))]
     false
+}
+
+fn invalid_path(message: &str) -> io::Error {
+    io::Error::new(io::ErrorKind::InvalidData, message)
 }
 
 #[cfg(windows)]

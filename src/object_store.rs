@@ -9,7 +9,7 @@ use flate2::write::ZlibEncoder;
 use flate2::Compression;
 
 use crate::hash::{git_object_sha1, to_hex};
-use crate::paths::repository_root;
+use crate::paths::common_metadata;
 
 static TEMP_FILE_COUNTER: AtomicU64 = AtomicU64::new(0);
 
@@ -121,8 +121,7 @@ fn object_path(object_id: &str) -> io::Result<PathBuf> {
         ));
     }
 
-    Ok(repository_root()?
-        .join(".rustgit")
+    Ok(common_metadata()?
         .join("objects")
         .join(&object_id[..2])
         .join(&object_id[2..]))

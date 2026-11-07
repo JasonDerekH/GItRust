@@ -3,7 +3,7 @@ use std::io;
 use std::path::{Path, PathBuf};
 
 use crate::object_store::object_exists;
-use crate::paths::repository_root;
+use crate::paths::{common_metadata, worktree_metadata};
 
 pub fn update_ref(name: &str, object_id: &str) -> io::Result<()> {
     let reference = normalize_reference(name)?;
@@ -32,7 +32,7 @@ pub fn resolve_ref(name: &str) -> io::Result<String> {
 }
 
 pub fn list_refs() -> io::Result<Vec<(String, String)>> {
-    let root = repository_root()?.join(".rustgit").join("refs");
+    let root = common_metadata()?.join("refs");
     let mut names = Vec::new();
     collect_refs(&root, &root, &mut names)?;
     names.sort();
@@ -44,7 +44,7 @@ pub fn list_refs() -> io::Result<Vec<(String, String)>> {
 }
 
 pub fn current_branch() -> io::Result<Option<String>> {
-    let head = fs::read_to_string(repository_root()?.join(".rustgit").join("HEAD"))?;
+    let head = fs::read_to_string(worktree_metadata()?.join("HEAD"))?;
     let Some(reference) = head.trim().strip_prefix("ref: refs/heads/") else {
         return Ok(None);
     };
@@ -109,9 +109,9 @@ fn validate_reference_part(name: &str) -> io::Result<()> {
 
 fn reference_path(name: &str) -> io::Result<PathBuf> {
     if name == "HEAD" {
-        return Ok(repository_root()?.join(".rustgit").join("HEAD"));
+        return Ok(worktree_metadata()?.join("HEAD"));
     }
-    Ok(repository_root()?.join(".rustgit").join(name))
+    Ok(common_metadata()?.join(name))
 }
 
 fn collect_refs(root: &Path, directory: &Path, names: &mut Vec<String>) -> io::Result<()> {

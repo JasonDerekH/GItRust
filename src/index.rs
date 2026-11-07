@@ -5,7 +5,7 @@ use std::io;
 use std::path::Path;
 
 use crate::object_store::write_object;
-use crate::paths::{read_repository_file, repository_root};
+use crate::paths::{read_repository_file, worktree_metadata};
 
 pub const FILE_MODE: u32 = 0o100644;
 
@@ -40,7 +40,12 @@ pub fn add(path: impl AsRef<Path>) -> io::Result<()> {
 
 /// Read the custom index from `.rustgit/index`.
 pub fn read_index() -> io::Result<Vec<IndexEntry>> {
-    let index_path = repository_root()?.join(".rustgit").join("index");
+    read_index_at(worktree_metadata()?.join("index"))
+}
+
+/// Read an index from a specific worktree metadata directory.
+pub fn read_index_at(path: impl AsRef<Path>) -> io::Result<Vec<IndexEntry>> {
+    let index_path = path.as_ref().to_owned();
     if !index_path.exists() {
         return Ok(Vec::new());
     }
@@ -80,6 +85,11 @@ pub fn read_index() -> io::Result<Vec<IndexEntry>> {
 
 /// Write index entries in deterministic path order.
 pub fn write_index(entries: &[IndexEntry]) -> io::Result<()> {
+    write_index_at(worktree_metadata()?, entries)
+}
+
+/// Write an index into a specific worktree metadata directory.
+pub fn write_index_at(metadata: impl AsRef<Path>, entries: &[IndexEntry]) -> io::Result<()> {
     let mut entries = entries.to_vec();
     entries.sort_by(|left, right| left.path.as_bytes().cmp(right.path.as_bytes()));
 
@@ -92,7 +102,7 @@ pub fn write_index(entries: &[IndexEntry]) -> io::Result<()> {
         contents.push('\n');
     }
 
-    let index_path = repository_root()?.join(".rustgit").join("index");
+    let index_path = metadata.as_ref().join("index");
     fs::write(index_path, contents)
 }
 

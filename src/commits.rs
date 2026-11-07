@@ -5,7 +5,7 @@ use std::io;
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use crate::object_store::{read_object, write_object};
-use crate::paths::repository_root;
+use crate::paths::{common_metadata, worktree_metadata};
 use crate::refs::update_ref;
 
 /// Identity information written to an author or committer header.
@@ -113,10 +113,10 @@ pub fn read_commit(commit_id: &str) -> io::Result<Commit> {
 
 /// Return the current commit, if the current branch has one.
 pub fn head_commit() -> io::Result<Option<String>> {
-    let head = fs::read_to_string(repository_root()?.join(".rustgit").join("HEAD"))?;
+    let head = fs::read_to_string(worktree_metadata()?.join("HEAD"))?;
     let head = head.trim();
     if let Some(reference) = head.strip_prefix("ref: ") {
-        let path = repository_root()?.join(".rustgit").join(reference);
+        let path = common_metadata()?.join(reference);
         if !path.exists() {
             return Ok(None);
         }
@@ -139,7 +139,7 @@ fn update_head(commit_id: &str) -> io::Result<()> {
 }
 
 fn head_reference() -> io::Result<String> {
-    let head = fs::read_to_string(repository_root()?.join(".rustgit").join("HEAD"))?;
+    let head = fs::read_to_string(worktree_metadata()?.join("HEAD"))?;
     let reference = head
         .trim()
         .strip_prefix("ref: ")

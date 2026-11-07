@@ -10,6 +10,7 @@ use git_rust::paths::read_repository_file;
 use git_rust::refs::{branch_reference, current_branch, list_refs, resolve_ref, update_ref};
 use git_rust::trees::{read_tree, write_tree_from_index};
 use git_rust::worktree::checkout;
+use git_rust::worktrees::add as add_worktree;
 
 fn main() {
     let mut arguments = env::args().skip(1);
@@ -30,6 +31,7 @@ fn main() {
         "log" => log_command(),
         "checkout" => checkout_command(&mut arguments),
         "branch" => branch_command(&mut arguments),
+        "worktree" => worktree_command(&mut arguments),
         unknown => {
             eprintln!("unknown command: {unknown}");
             process::exit(1);
@@ -168,6 +170,29 @@ fn branch_command(arguments: &mut impl Iterator<Item = String>) -> io::Result<()
         }
     }
     Ok(())
+}
+
+fn worktree_command(arguments: &mut impl Iterator<Item = String>) -> io::Result<()> {
+    if arguments.next().as_deref() != Some("add") {
+        return Err(io::Error::new(
+            io::ErrorKind::InvalidInput,
+            "worktree requires the add subcommand",
+        ));
+    }
+    let Some(path) = arguments.next() else {
+        return Err(io::Error::new(
+            io::ErrorKind::InvalidInput,
+            "worktree add requires a path and branch",
+        ));
+    };
+    let Some(branch) = arguments.next() else {
+        return Err(io::Error::new(
+            io::ErrorKind::InvalidInput,
+            "worktree add requires a path and branch",
+        ));
+    };
+
+    add_worktree(path, &branch)
 }
 
 fn ls_tree_command(arguments: &mut impl Iterator<Item = String>) -> io::Result<()> {
