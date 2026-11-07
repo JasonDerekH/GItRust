@@ -10,6 +10,7 @@ use crate::hash::git_object_sha1_hex;
 use crate::index::{read_index, write_index, IndexEntry};
 use crate::object_store::{object_exists, read_object};
 use crate::paths::repository_root;
+use crate::refs::{branch_reference, resolve_ref};
 use crate::trees::read_tree;
 
 /// Check out a commit ID or a branch name into the current working directory.
@@ -58,7 +59,7 @@ struct ResolvedTarget {
     head_value: String,
 }
 
-fn resolve_target(repository: &Path, target: &str) -> io::Result<ResolvedTarget> {
+fn resolve_target(_repository: &Path, target: &str) -> io::Result<ResolvedTarget> {
     if object_exists(target) {
         return Ok(ResolvedTarget {
             commit: read_commit(target)?,
@@ -66,32 +67,12 @@ fn resolve_target(repository: &Path, target: &str) -> io::Result<ResolvedTarget>
         });
     }
 
-    let reference = if let Some(reference) = target.strip_prefix("refs/heads/") {
-        reference.to_owned()
-    } else {
-        target.to_owned()
-    };
-    if reference.is_empty()
-        || reference.contains("..")
-        || reference.contains('\\')
-        || reference.starts_with('/')
-    {
-        return Err(invalid_checkout("invalid branch name or commit id"));
-    }
-
-    let reference_path = repository
-        .join(".rustgit")
-        .join("refs")
-        .join("heads")
-        .join(&reference);
-    let commit_id = fs::read_to_string(reference_path)?.trim().to_owned();
-    if commit_id.is_empty() {
-        return Err(invalid_checkout("branch does not point to a commit"));
-    }
+    let reference = branch_reference(target)?;
+    let commit_id = resolve_ref(&reference)?;
 
     Ok(ResolvedTarget {
         commit: read_commit(&commit_id)?,
-        head_value: format!("ref: refs/heads/{reference}\n"),
+        head_value: format!("ref: {reference}\n"),
     })
 }
 

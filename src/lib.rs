@@ -9,6 +9,7 @@ pub mod hash;
 pub mod index;
 pub mod object_store;
 pub mod paths;
+pub mod refs;
 pub mod trees;
 pub mod worktree;
 

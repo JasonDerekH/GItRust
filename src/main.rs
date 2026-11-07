@@ -7,6 +7,7 @@ use git_rust::index::{add as add_to_index, read_index};
 use git_rust::init;
 use git_rust::object_store::{read_object, write_object};
 use git_rust::paths::read_repository_file;
+use git_rust::refs::{branch_reference, current_branch, list_refs, resolve_ref, update_ref};
 use git_rust::trees::{read_tree, write_tree_from_index};
 use git_rust::worktree::checkout;
 
@@ -28,6 +29,7 @@ fn main() {
         "ls-tree" => ls_tree_command(&mut arguments),
         "log" => log_command(),
         "checkout" => checkout_command(&mut arguments),
+        "branch" => branch_command(&mut arguments),
         unknown => {
             eprintln!("unknown command: {unknown}");
             process::exit(1);
@@ -145,6 +147,27 @@ fn checkout_command(arguments: &mut impl Iterator<Item = String>) -> io::Result<
     };
 
     checkout(&target)
+}
+
+fn branch_command(arguments: &mut impl Iterator<Item = String>) -> io::Result<()> {
+    if let Some(name) = arguments.next() {
+        let head = resolve_ref("HEAD")?;
+        update_ref(&branch_reference(&name)?, &head)?;
+        return Ok(());
+    }
+
+    let current = current_branch()?;
+    for (reference, object_id) in list_refs()? {
+        if let Some(name) = reference.strip_prefix("refs/heads/") {
+            let marker = if current.as_deref() == Some(name) {
+                "*"
+            } else {
+                " "
+            };
+            println!("{marker} {name} {object_id}");
+        }
+    }
+    Ok(())
 }
 
 fn ls_tree_command(arguments: &mut impl Iterator<Item = String>) -> io::Result<()> {

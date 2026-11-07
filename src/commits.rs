@@ -6,6 +6,7 @@ use std::time::{SystemTime, UNIX_EPOCH};
 
 use crate::object_store::{read_object, write_object};
 use crate::paths::repository_root;
+use crate::refs::update_ref;
 
 /// Identity information written to an author or committer header.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -134,11 +135,7 @@ pub fn head_commit() -> io::Result<Option<String>> {
 
 fn update_head(commit_id: &str) -> io::Result<()> {
     let reference = head_reference()?;
-    let path = repository_root()?.join(".rustgit").join(reference);
-    if let Some(parent) = path.parent() {
-        fs::create_dir_all(parent)?;
-    }
-    fs::write(path, format!("{commit_id}\n"))
+    update_ref(&reference, commit_id)
 }
 
 fn head_reference() -> io::Result<String> {
