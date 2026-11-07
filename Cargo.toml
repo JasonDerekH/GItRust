@@ -1,0 +1,12 @@
+[package]
+name = "git-rust"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+flate2 = "1"
+sha1 = "0.10"
+
+[[bin]]
+name = "rustgit"
+path = "src/main.rs"
