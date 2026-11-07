@@ -34,6 +34,7 @@ pub fn add(path: impl AsRef<Path>, branch: &str) -> io::Result<()> {
             "linked worktree must be outside the current repository",
         ));
     }
+    let target_was_created = !target.exists();
     if target.exists() {
         if !target.is_dir() || fs::read_dir(&target)?.next().is_some() {
             return Err(invalid_worktree(
@@ -44,38 +45,58 @@ pub fn add(path: impl AsRef<Path>, branch: &str) -> io::Result<()> {
         fs::create_dir_all(&target)?;
     }
     let target = fs::canonicalize(target)?;
+    if is_inside_existing_worktree(&common, &target)? {
+        if target_was_created {
+            let _ = fs::remove_dir_all(&target);
+        }
+        return Err(invalid_worktree("path is inside an existing worktree"));
+    }
 
     let worktree_id = &to_hex(&sha1_bytes(target.to_string_lossy().as_bytes()))[..16];
     let metadata = common.join("worktrees").join(worktree_id);
     if metadata.exists() {
+        if target_was_created {
+            let _ = fs::remove_dir_all(&target);
+        }
         return Err(invalid_worktree("worktree metadata already exists"));
     }
-    fs::create_dir_all(&metadata)?;
 
-    fs::write(
-        metadata.join("commondir"),
-        format!("{}\n", common.display()),
-    )?;
-    fs::write(metadata.join("worktree"), format!("{}\n", target.display()))?;
-    fs::write(metadata.join("HEAD"), format!("ref: {reference}\n"))?;
-    write_index_at(&metadata, &entries)?;
+    let setup = (|| -> io::Result<()> {
+        fs::create_dir_all(&metadata)?;
+        fs::write(
+            metadata.join("commondir"),
+            format!("{}\n", common.display()),
+        )?;
+        fs::write(metadata.join("worktree"), format!("{}\n", target.display()))?;
+        fs::write(metadata.join("HEAD"), format!("ref: {reference}\n"))?;
+        write_index_at(&metadata, &entries)?;
 
-    for entry in &entries {
-        let object = read_object(&entry.object_id)?;
-        if object.object_type != "blob" {
-            return Err(invalid_worktree("tree entry does not point to a blob"));
+        for entry in &entries {
+            let object = read_object(&entry.object_id)?;
+            if object.object_type != "blob" {
+                return Err(invalid_worktree("tree entry does not point to a blob"));
+            }
+            let file = target.join(&entry.path);
+            if let Some(parent) = file.parent() {
+                fs::create_dir_all(parent)?;
+            }
+            fs::write(file, object.content)?;
         }
-        let file = target.join(&entry.path);
-        if let Some(parent) = file.parent() {
-            fs::create_dir_all(parent)?;
+
+        fs::write(
+            target.join(".rustgit"),
+            format!("gitdir: {}\n", metadata.display()),
+        )?;
+        Ok(())
+    })();
+
+    if let Err(error) = setup {
+        let _ = fs::remove_dir_all(&metadata);
+        if target_was_created {
+            let _ = fs::remove_dir_all(&target);
         }
-        fs::write(file, object.content)?;
+        return Err(error);
     }
-
-    fs::write(
-        target.join(".rustgit"),
-        format!("gitdir: {}\n", metadata.display()),
-    )?;
 
     Ok(())
 }
@@ -129,6 +150,28 @@ fn head_uses_branch(head: &Path, requested: &str) -> io::Result<bool> {
     }
     let value = fs::read_to_string(head)?;
     Ok(value.trim() == format!("ref: {requested}"))
+}
+
+fn is_inside_existing_worktree(common: &Path, target: &Path) -> io::Result<bool> {
+    let worktrees = common.join("worktrees");
+    if !worktrees.exists() {
+        return Ok(false);
+    }
+    for item in fs::read_dir(worktrees)? {
+        let item = item?;
+        if !item.file_type()?.is_dir() {
+            continue;
+        }
+        let path_file = item.path().join("worktree");
+        if !path_file.exists() {
+            continue;
+        }
+        let worktree = fs::canonicalize(fs::read_to_string(path_file)?.trim())?;
+        if target == worktree || target.starts_with(&worktree) {
+            return Ok(true);
+        }
+    }
+    Ok(false)
 }
 
 fn absolute_target(path: &Path) -> io::Result<PathBuf> {
