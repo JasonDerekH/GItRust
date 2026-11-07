@@ -112,16 +112,23 @@ pub fn read_commit(commit_id: &str) -> io::Result<Commit> {
 
 /// Return the current commit, if the current branch has one.
 pub fn head_commit() -> io::Result<Option<String>> {
-    let reference = head_reference()?;
-    let path = repository_root()?.join(".rustgit").join(reference);
-    if !path.exists() {
-        return Ok(None);
-    }
-    let commit_id = fs::read_to_string(path)?.trim().to_owned();
-    if commit_id.is_empty() {
+    let head = fs::read_to_string(repository_root()?.join(".rustgit").join("HEAD"))?;
+    let head = head.trim();
+    if let Some(reference) = head.strip_prefix("ref: ") {
+        let path = repository_root()?.join(".rustgit").join(reference);
+        if !path.exists() {
+            return Ok(None);
+        }
+        let commit_id = fs::read_to_string(path)?.trim().to_owned();
+        if commit_id.is_empty() {
+            Ok(None)
+        } else {
+            Ok(Some(commit_id))
+        }
+    } else if head.is_empty() {
         Ok(None)
     } else {
-        Ok(Some(commit_id))
+        Ok(Some(head.to_owned()))
     }
 }
 

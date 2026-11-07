@@ -10,6 +10,7 @@ pub mod index;
 pub mod object_store;
 pub mod paths;
 pub mod trees;
+pub mod worktree;
 
 /// Create a Git repository in the current directory.
 pub fn init() -> io::Result<()> {

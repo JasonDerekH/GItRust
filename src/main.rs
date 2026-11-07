@@ -8,6 +8,7 @@ use git_rust::init;
 use git_rust::object_store::{read_object, write_object};
 use git_rust::paths::read_repository_file;
 use git_rust::trees::{read_tree, write_tree_from_index};
+use git_rust::worktree::checkout;
 
 fn main() {
     let mut arguments = env::args().skip(1);
@@ -26,6 +27,7 @@ fn main() {
         "write-tree" => write_tree_command(&mut arguments),
         "ls-tree" => ls_tree_command(&mut arguments),
         "log" => log_command(),
+        "checkout" => checkout_command(&mut arguments),
         unknown => {
             eprintln!("unknown command: {unknown}");
             process::exit(1);
@@ -132,6 +134,17 @@ fn log_command() -> io::Result<()> {
         current = decoded.parents.first().cloned();
     }
     Ok(())
+}
+
+fn checkout_command(arguments: &mut impl Iterator<Item = String>) -> io::Result<()> {
+    let Some(target) = arguments.next() else {
+        return Err(io::Error::new(
+            io::ErrorKind::InvalidInput,
+            "checkout requires a commit id or branch name",
+        ));
+    };
+
+    checkout(&target)
 }
 
 fn ls_tree_command(arguments: &mut impl Iterator<Item = String>) -> io::Result<()> {
