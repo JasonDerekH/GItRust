@@ -1,0 +1,57 @@
+RustGit command test checklist
+==============================
+
+Build and test
+--------------
+cd C:\Users\jason\Downloads\gitRust
+cargo test
+cargo build
+
+$git = (Resolve-Path .\target\debug\rustgit.exe).Path
+$repo = Join-Path $env:TEMP "rustgit-demo"
+Remove-Item $repo -Recurse -Force -ErrorAction SilentlyContinue
+New-Item -ItemType Directory $repo | Out-Null
+Set-Location $repo
+
+Initialize and inspect the repository
+--------------------------------------
+& $git init
+Get-ChildItem -Force .rustgit
+Get-Content .rustgit\HEAD
+
+Hash and retrieve a blob
+------------------------
+Set-Content file.txt "hello RustGit"
+& $git hash-object file.txt
+
+$blob = (Get-Content .rustgit\index)[2]
+& $git cat-file $blob
+
+Stage and create a tree
+-----------------------
+& $git add file.txt
+$tree = (& $git write-tree).Trim()
+& $git ls-tree $tree
+
+Create and inspect a commit
+---------------------------
+$commit = (& $git commit -m "Initial commit").Trim()
+& $git log
+Get-Content .rustgit\refs\heads\main
+
+Test branches and checkout
+--------------------------
+& $git branch feature
+& $git branch
+& $git checkout feature
+Get-Content .rustgit\HEAD
+
+Test linked worktrees
+---------------------
+& $git checkout main
+& $git worktree add ..\rustgit-feature feature
+
+Get-Content ..\rustgit-feature\.rustgit
+Set-Location ..\rustgit-feature
+& $git log
+Set-Location $repo
